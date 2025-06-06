@@ -19,7 +19,7 @@ import { supabase } from '@/integrations/supabase/client';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid } from 'recharts';
 import { ChartContainer, ChartConfig, ChartTooltip, ChartTooltipContent } from '@/components/ui/chart';
-import { LogOut, Filter, Trash2, ChevronDown, X } from 'lucide-react';
+import { LogOut, Filter, Trash2, ChevronDown, X, FileText } from 'lucide-react';
 import {
   Table,
   TableBody,
@@ -258,10 +258,16 @@ const AdminDashboard = ({ onLogout, sessionId }: AdminDashboardProps) => {
         {/* Header */}
         <div className="flex justify-between items-center">
           <h1 className="text-3xl font-bold">Tilbakemeldingsstatistikk</h1>
-          <Button onClick={handleLogout} variant="outline">
-            <LogOut className="w-4 h-4 mr-2" />
-            Logg ut
-          </Button>
+          <div className="flex gap-2">
+            <Button onClick={() => window.location.href = '/admin/qualitative'} variant="outline">
+              <FileText className="w-4 h-4 mr-2" />
+              Kvalitative svar
+            </Button>
+            <Button onClick={handleLogout} variant="outline">
+              <LogOut className="w-4 h-4 mr-2" />
+              Logg ut
+            </Button>
+          </div>
         </div>
 
         {/* Filters */}
