@@ -187,18 +187,29 @@ const FeedbackForm = () => {
       <Label className="text-sm font-medium">{label}</Label>
       <div className="flex justify-between">
         {[1, 2, 3, 4, 5, 6, 7].map((rating) => (
-          <button
+          <span
             key={rating}
-            type="button"
-            onClick={() => handleRatingChange(field, rating)}
-            className={`w-8 h-8 rounded-full border-2 text-sm font-medium transition-colors ${
-              value === rating
-                ? "bg-blue-600 text-white border-blue-600"
-                : "border-gray-300 hover:border-blue-400"
-            }`}
+            className="relative w-8 h-8 flex items-center justify-center"
           >
-            {rating}
-          </button>
+            <input
+              type="radio"
+              name={field}
+              value={rating}
+              checked={value === rating}
+              onChange={() => handleRatingChange(field, rating)}
+              className="absolute inset-0 w-full h-full opacity-0 cursor-pointer"
+              onFocus={(e) => e.target.blur()}
+            />
+            <span
+              className={`w-8 h-8 rounded-full border-2 text-sm font-medium flex items-center justify-center transition-colors ${
+                value === rating
+                  ? "bg-blue-600 text-white border-blue-600"
+                  : "border-gray-300 hover:border-blue-400"
+              }`}
+            >
+              {rating}
+            </span>
+          </span>
         ))}
       </div>
     </div>
