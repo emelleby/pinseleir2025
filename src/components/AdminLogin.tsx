@@ -5,7 +5,6 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { useToast } from '@/hooks/use-toast';
-import { supabase } from '@/integrations/supabase/client';
 import { useMutation } from '@tanstack/react-query';
 
 interface AdminLoginProps {
@@ -18,44 +17,31 @@ const AdminLogin = ({ onLogin }: AdminLoginProps) => {
 
   const loginMutation = useMutation({
     mutationFn: async (password: string) => {
+      // Check password
       if (password !== 'Pinseleir2025') {
         throw new Error('Feil passord');
       }
 
-      console.log('Creating admin session...');
+      // Create a simple session token with expiration
+      const sessionData = {
+        sessionId: crypto.randomUUID(),
+        expiresAt: Date.now() + 24 * 60 * 60 * 1000, // 24 hours
+        createdAt: Date.now()
+      };
 
-      // Create a session with better error handling
-      const sessionId = crypto.randomUUID();
-      const expiresAt = new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString();
-      
-      console.log('Session details:', { sessionId, expiresAt });
+      // Store session data in localStorage with expiration
+      localStorage.setItem('admin_session_data', JSON.stringify(sessionData));
 
-      const { data, error } = await supabase
-        .from('admin_sessions')
-        .insert({
-          session_id: sessionId,
-          expires_at: expiresAt
-        })
-        .select()
-        .single();
-
-      if (error) {
-        console.error('Session creation error:', error);
-        throw new Error(`Kunne ikke opprette sesjon: ${error.message}`);
-      }
-
-      console.log('Session created successfully:', data);
-      return sessionId;
+      return sessionData.sessionId;
     },
     onSuccess: (sessionId) => {
-      localStorage.setItem('admin_session_id', sessionId);
       onLogin(sessionId);
       toast({
         title: "Innlogget",
         description: "Velkommen til admin-panelet.",
       });
     },
-    onError: (error) => {
+    onError: (error: Error) => {
       console.error('Login error:', error);
       toast({
         title: "Innlogging feilet",
@@ -102,8 +88,8 @@ const AdminLogin = ({ onLogin }: AdminLoginProps) => {
                 className="mt-1"
               />
             </div>
-            <Button 
-              type="submit" 
+            <Button
+              type="submit"
               className="w-full"
               disabled={loginMutation.isPending}
             >

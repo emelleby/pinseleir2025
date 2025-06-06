@@ -2,14 +2,15 @@
 import React, { useState, useEffect } from 'react';
 import AdminLogin from '@/components/AdminLogin';
 import AdminDashboard from '@/components/AdminDashboard';
+import { isAdminLoggedIn, getAdminSessionId, clearAdminSession } from '@/utils/adminAuth';
 
 const Admin = () => {
   const [sessionId, setSessionId] = useState<string | null>(null);
 
   useEffect(() => {
-    // Check if user is already logged in
-    const storedSessionId = localStorage.getItem('admin_session_id');
-    if (storedSessionId) {
+    // Check if user is already logged in with valid session
+    if (isAdminLoggedIn()) {
+      const storedSessionId = getAdminSessionId();
       setSessionId(storedSessionId);
     }
   }, []);
@@ -19,6 +20,7 @@ const Admin = () => {
   };
 
   const handleLogout = () => {
+    clearAdminSession();
     setSessionId(null);
   };
 

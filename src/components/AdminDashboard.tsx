@@ -4,8 +4,10 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { useToast } from '@/hooks/use-toast';
 import { supabase } from '@/integrations/supabase/client';
+import { ChartBarHorizontal } from '@/components/chart';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts';
+import { BarChart, Bar, XAxis, YAxis, CartesianGrid } from 'recharts';
+import { ChartContainer, ChartConfig, ChartTooltip, ChartTooltipContent } from '@/components/ui/chart';
 import { LogOut, Filter, Trash2 } from 'lucide-react';
 import {
   Table,
@@ -15,6 +17,7 @@ import {
   TableHeader,
   TableRow,
 } from '@/components/ui/table';
+import { getShortFieldTranslation } from '@/utils/translations';
 
 interface AdminDashboardProps {
   onLogout: () => void;
@@ -22,7 +25,7 @@ interface AdminDashboardProps {
 }
 
 const boatClasses = [
-  'QA', 'QB', 'QC', 'QD', 'QE', 'QF', 'QG', 
+  'QA', 'QB', 'QC', 'QD', 'QE', 'QF', 'QG',
   'ILCA4', 'ILCA6', '29er', 'FEVA'
 ];
 
@@ -41,40 +44,11 @@ const AdminDashboard = ({ onLogout, sessionId }: AdminDashboardProps) => {
   const { data: feedbackData, isLoading, error } = useQuery({
     queryKey: ['feedback', selectedDate, selectedClass, sessionId],
     queryFn: async () => {
-      console.log('Validating admin session:', sessionId);
-      
-      // First validate the admin session with better error handling
-      const { data: sessionCheck, error: sessionError } = await supabase
-        .from('admin_sessions')
-        .select('id, expires_at')
-        .eq('session_id', sessionId)
-        .maybeSingle();
-
-      console.log('Session check result:', { sessionCheck, sessionError });
-
-      if (sessionError) {
-        console.error('Session check error:', sessionError);
-        throw new Error(`Database error: ${sessionError.message}`);
-      }
-
-      if (!sessionCheck) {
-        console.error('No session found for session_id:', sessionId);
-        throw new Error('Invalid admin session - session not found');
-      }
-
-      // Check if session is expired
-      const now = new Date();
-      const expiresAt = new Date(sessionCheck.expires_at);
-      if (expiresAt <= now) {
-        console.error('Session expired:', { expiresAt, now });
-        throw new Error('Admin session has expired');
-      }
-
-      console.log('Session validated successfully');
+      console.log('Fetching feedback data for admin session:', sessionId);
 
       // Build the query for feedback data
       let query = supabase.from('feedback').select('*');
-      
+
       if (selectedDate && selectedDate !== 'all') {
         query = query.eq('training_date', selectedDate);
       }
@@ -87,7 +61,7 @@ const AdminDashboard = ({ onLogout, sessionId }: AdminDashboardProps) => {
         console.error('Feedback query error:', error);
         throw error;
       }
-      
+
       console.log('Feedback data loaded:', data?.length || 0, 'records');
       return data || [];
     }
@@ -95,18 +69,6 @@ const AdminDashboard = ({ onLogout, sessionId }: AdminDashboardProps) => {
 
   const deleteFeedbackMutation = useMutation({
     mutationFn: async (feedbackId: string) => {
-      // Validate session again before deletion
-      const { data: sessionCheck } = await supabase
-        .from('admin_sessions')
-        .select('id')
-        .eq('session_id', sessionId)
-        .gt('expires_at', new Date().toISOString())
-        .maybeSingle();
-
-      if (!sessionCheck) {
-        throw new Error('Invalid or expired admin session');
-      }
-
       const { error } = await supabase
         .from('feedback')
         .delete()
@@ -132,7 +94,6 @@ const AdminDashboard = ({ onLogout, sessionId }: AdminDashboardProps) => {
   });
 
   const handleLogout = () => {
-    localStorage.removeItem('admin_session_id');
     onLogout();
     toast({
       title: "Logget ut",
@@ -141,25 +102,29 @@ const AdminDashboard = ({ onLogout, sessionId }: AdminDashboardProps) => {
   };
 
   const calculateAverages = () => {
-    if (!feedbackData || feedbackData.length === 0) return {};
+    if (!feedbackData || feedbackData.length === 0) {
+      return {};
+    }
 
-    const fields = [
-      'enjoyment', 'learning', 'social_connections', 'food_quality',
-      'coach_quality', 'organization', 'safety', 'equipment',
-      'instructions', 'tempo', 'future_participation', 'recommendation',
-      'safety_measures', 'equipment_quality', 'instruction_clarity',
-      'facilities', 'meals', 'weather_handling'
-    ];
+    // Get all numeric fields from the first record to see what's available
+    const firstRecord = feedbackData[0];
+    const numericFields = Object.keys(firstRecord).filter(key => {
+      const value = firstRecord[key as keyof typeof firstRecord];
+      return typeof value === 'number' && !isNaN(value);
+    });
 
     const averages: Record<string, number> = {};
-    
-    fields.forEach(field => {
+
+    numericFields.forEach(field => {
       const values = feedbackData
         .map(item => item[field as keyof typeof item])
-        .filter(val => val !== null && val !== undefined) as number[];
-      
+        .filter(val => val !== null && val !== undefined && typeof val === 'number' && !isNaN(val)) as number[];
+
       if (values.length > 0) {
-        averages[field] = values.reduce((sum, val) => sum + val, 0) / values.length;
+        const average = values.reduce((sum, val) => sum + val, 0) / values.length;
+        if (!isNaN(average) && isFinite(average)) {
+          averages[field] = average;
+        }
       }
     });
 
@@ -168,40 +133,51 @@ const AdminDashboard = ({ onLogout, sessionId }: AdminDashboardProps) => {
 
   const getChartData = () => {
     const averages = calculateAverages();
-    return Object.entries(averages).map(([key, value]) => ({
-      name: key.replace(/_/g, ' ').replace(/\b\w/g, l => l.toUpperCase()),
-      value: Math.round(value * 10) / 10
-    }));
+    return Object.entries(averages)
+      .filter(([, value]) => !isNaN(value) && isFinite(value))
+      .map(([key, value]) => ({
+        name: getShortFieldTranslation(key),
+        value: Math.round(value * 10) / 10
+      }))
+      .sort((a, b) => b.value - a.value); // Sort by value descending
   };
 
   const getResponsesByDay = () => {
-    if (!feedbackData) return [];
-    
+    if (!feedbackData || feedbackData.length === 0) return [];
+
     const grouped = feedbackData.reduce((acc: Record<string, number>, item) => {
       const date = item.training_date;
-      acc[date] = (acc[date] || 0) + 1;
+      if (date) {
+        acc[date] = (acc[date] || 0) + 1;
+      }
       return acc;
     }, {});
 
-    return Object.entries(grouped).map(([date, count]) => ({
-      date: trainingDates.find(d => d.value === date)?.label || date,
-      responses: count
-    }));
+    return Object.entries(grouped)
+      .filter(([date, count]) => date && count > 0)
+      .map(([date, count]) => ({
+        date: trainingDates.find(d => d.value === date)?.label || date,
+        responses: count
+      }));
   };
 
   const getResponsesByClass = () => {
-    if (!feedbackData) return [];
-    
+    if (!feedbackData || feedbackData.length === 0) return [];
+
     const grouped = feedbackData.reduce((acc: Record<string, number>, item) => {
       const boatClass = item.boat_class;
-      acc[boatClass] = (acc[boatClass] || 0) + 1;
+      if (boatClass) {
+        acc[boatClass] = (acc[boatClass] || 0) + 1;
+      }
       return acc;
     }, {});
 
-    return Object.entries(grouped).map(([boatClass, count]) => ({
-      class: boatClass,
-      responses: count
-    }));
+    return Object.entries(grouped)
+      .filter(([boatClass, count]) => boatClass && count > 0)
+      .map(([boatClass, count]) => ({
+        class: boatClass,
+        responses: count
+      }));
   };
 
   if (error) {
@@ -300,7 +276,7 @@ const AdminDashboard = ({ onLogout, sessionId }: AdminDashboardProps) => {
                   <p className="text-3xl font-bold">{feedbackData?.length || 0}</p>
                 </CardContent>
               </Card>
-              
+
               <Card>
                 <CardHeader>
                   <CardTitle>Gjennomsnittlig tilfredshet</CardTitle>
@@ -308,14 +284,15 @@ const AdminDashboard = ({ onLogout, sessionId }: AdminDashboardProps) => {
                 </CardHeader>
                 <CardContent>
                   <p className="text-3xl font-bold">
-                    {feedbackData && feedbackData.length > 0 
-                      ? (feedbackData
-                          .filter(item => item.enjoyment !== null)
-                          .reduce((sum, item) => sum + (item.enjoyment || 0), 0) / 
-                         feedbackData.filter(item => item.enjoyment !== null).length
-                        ).toFixed(1)
-                      : 'N/A'
-                    }
+                    {(() => {
+                      if (!feedbackData || feedbackData.length === 0) return 'N/A';
+                      const validValues = feedbackData
+                        .filter(item => item.enjoyment !== null && item.enjoyment !== undefined && !isNaN(item.enjoyment))
+                        .map(item => item.enjoyment);
+                      if (validValues.length === 0) return 'N/A';
+                      const average = validValues.reduce((sum, val) => sum + val, 0) / validValues.length;
+                      return isNaN(average) ? 'N/A' : average.toFixed(1);
+                    })()}
                   </p>
                 </CardContent>
               </Card>
@@ -327,14 +304,15 @@ const AdminDashboard = ({ onLogout, sessionId }: AdminDashboardProps) => {
                 </CardHeader>
                 <CardContent>
                   <p className="text-3xl font-bold">
-                    {feedbackData && feedbackData.length > 0 
-                      ? (feedbackData
-                          .filter(item => item.recommendation !== null)
-                          .reduce((sum, item) => sum + (item.recommendation || 0), 0) / 
-                         feedbackData.filter(item => item.recommendation !== null).length
-                        ).toFixed(1)
-                      : 'N/A'
-                    }
+                    {(() => {
+                      if (!feedbackData || feedbackData.length === 0) return 'N/A';
+                      const validValues = feedbackData
+                        .filter(item => item.recommendation !== null && item.recommendation !== undefined && !isNaN(item.recommendation))
+                        .map(item => item.recommendation);
+                      if (validValues.length === 0) return 'N/A';
+                      const average = validValues.reduce((sum, val) => sum + val, 0) / validValues.length;
+                      return isNaN(average) ? 'N/A' : average.toFixed(1);
+                    })()}
                   </p>
                 </CardContent>
               </Card>
@@ -347,15 +325,43 @@ const AdminDashboard = ({ onLogout, sessionId }: AdminDashboardProps) => {
                   <CardTitle>Svar per dag</CardTitle>
                 </CardHeader>
                 <CardContent>
-                  <ResponsiveContainer width="100%" height={300}>
-                    <BarChart data={getResponsesByDay()}>
-                      <CartesianGrid strokeDasharray="3 3" />
-                      <XAxis dataKey="date" />
-                      <YAxis />
-                      <Tooltip />
-                      <Bar dataKey="responses" fill="#3b82f6" />
-                    </BarChart>
-                  </ResponsiveContainer>
+                  {getResponsesByDay().length > 0 ? (
+                    <ChartContainer
+                      config={{
+                        responses: {
+                          label: "Antall svar",
+                          color: "hsl(217, 91%, 60%)", // Blue
+                        },
+                      } satisfies ChartConfig}
+                      className="h-[300px]"
+                    >
+                      <BarChart accessibilityLayer data={getResponsesByDay()}>
+                        <defs>
+                          <linearGradient id="blueGradient" x1="0" y1="0" x2="0" y2="1">
+                            <stop offset="0%" stopColor="hsl(217, 91%, 60%)" />
+                            <stop offset="100%" stopColor="hsl(217, 91%, 80%)" />
+                          </linearGradient>
+                        </defs>
+                        <CartesianGrid vertical={false} />
+                        <XAxis
+                          dataKey="date"
+                          tickLine={false}
+                          axisLine={false}
+                          tickMargin={8}
+                        />
+                        <YAxis
+                          tickLine={false}
+                          axisLine={false}
+                        />
+                        <ChartTooltip content={<ChartTooltipContent />} />
+                        <Bar dataKey="responses" fill="url(#blueGradient)" radius={4} />
+                      </BarChart>
+                    </ChartContainer>
+                  ) : (
+                    <div className="h-[300px] flex items-center justify-center text-gray-500">
+                      <p>Ingen data tilgjengelig for valgte filtre</p>
+                    </div>
+                  )}
                 </CardContent>
               </Card>
 
@@ -364,35 +370,125 @@ const AdminDashboard = ({ onLogout, sessionId }: AdminDashboardProps) => {
                   <CardTitle>Svar per båtklasse</CardTitle>
                 </CardHeader>
                 <CardContent>
-                  <ResponsiveContainer width="100%" height={300}>
-                    <BarChart data={getResponsesByClass()}>
-                      <CartesianGrid strokeDasharray="3 3" />
-                      <XAxis dataKey="class" />
-                      <YAxis />
-                      <Tooltip />
-                      <Bar dataKey="responses" fill="#10b981" />
-                    </BarChart>
-                  </ResponsiveContainer>
+                  {getResponsesByClass().length > 0 ? (
+                    <ChartContainer
+                      config={{
+                        responses: {
+                          label: "Antall svar",
+                          color: "hsl(142, 76%, 36%)", // Green
+                        },
+                      } satisfies ChartConfig}
+                      className="h-[300px]"
+                    >
+                      <BarChart accessibilityLayer data={getResponsesByClass()}>
+                        <defs>
+                          <linearGradient id="greenGradient" x1="0" y1="0" x2="0" y2="1">
+                            <stop offset="0%" stopColor="hsl(142, 76%, 36%)" />
+                            <stop offset="100%" stopColor="hsl(142, 76%, 56%)" />
+                          </linearGradient>
+                        </defs>
+                        <CartesianGrid vertical={false} />
+                        <XAxis
+                          dataKey="class"
+                          tickLine={false}
+                          axisLine={false}
+                          tickMargin={8}
+                        />
+                        <YAxis
+                          tickLine={false}
+                          axisLine={false}
+                        />
+                        <ChartTooltip content={<ChartTooltipContent />} />
+                        <Bar dataKey="responses" fill="url(#greenGradient)" radius={4} />
+                      </BarChart>
+                    </ChartContainer>
+                  ) : (
+                    <div className="h-[300px] flex items-center justify-center text-gray-500">
+                      <p>Ingen data tilgjengelig for valgte filtre</p>
+                    </div>
+                  )}
                 </CardContent>
               </Card>
             </div>
 
-            {/* Average Ratings */}
+             {/* Average Ratings */}
             <Card>
               <CardHeader>
                 <CardTitle>Gjennomsnittlige vurderinger</CardTitle>
                 <CardDescription>Alle spørsmål på 1-7 skala</CardDescription>
               </CardHeader>
               <CardContent>
-                <ResponsiveContainer width="100%" height={400}>
-                  <BarChart data={getChartData()} layout="horizontal">
-                    <CartesianGrid strokeDasharray="3 3" />
-                    <XAxis type="number" domain={[0, 7]} />
-                    <YAxis dataKey="name" type="category" width={150} />
-                    <Tooltip />
-                    <Bar dataKey="value" fill="#f59e0b" />
-                  </BarChart>
-                </ResponsiveContainer>
+                {(() => {
+                  const chartData = getChartData();
+                  console.log('chartData', chartData);
+
+                  if (chartData.length === 0) {
+                    return (
+                      <div className="h-[400px] flex items-center justify-center text-gray-500">
+                        <p>Ingen data tilgjengelig for valgte filtre</p>
+                      </div>
+                    );
+                  }
+
+                  return (
+                    <ChartContainer
+                      config={{
+                        value: {
+                          label: "Gjennomsnitt",
+                          color: "hsl(262, 83%, 58%)", // Purple
+                        },
+                      } satisfies ChartConfig}
+                      className="h-[600px]"
+                    >
+                      <BarChart
+                        accessibilityLayer
+                        data={chartData}
+                        layout="vertical"
+                        margin={{
+                          left: 100,
+                          right: 20,
+                          top: 20,
+                          bottom: 20,
+                        }}
+                      >
+                        <defs>
+                          <linearGradient id="purpleGradient" x1="0" y1="0" x2="1" y2="0">
+                            <stop offset="0%" stopColor="hsl(262, 83%, 58%)" />
+                            <stop offset="50%" stopColor="hsl(262, 83%, 68%)" />
+                            <stop offset="100%" stopColor="hsl(262, 83%, 78%)" />
+                          </linearGradient>
+                        </defs>
+                        <CartesianGrid strokeDasharray="3 3" />
+                        <XAxis
+                          type="number"
+                          domain={[0, 7]}
+                          tickLine={false}
+                          axisLine={false}
+                        />
+                        <YAxis
+                          dataKey="name"
+                          type="category"
+                          width={120}
+                          tickLine={false}
+                          axisLine={false}
+                          tickFormatter={(value) => {
+                            // Truncate long labels for better display
+                            return value.length > 20 ? `${value.slice(0, 30)}...` : value;
+                          }}
+                        />
+                        <ChartTooltip
+                          content={<ChartTooltipContent />}
+                          cursor={{ fill: 'rgba(0, 0, 0, 0.1)' }}
+                        />
+                        <Bar
+                          dataKey="value"
+                          fill="url(#purpleGradient)"
+                          radius={[0, 4, 4, 0]}
+                        />
+                      </BarChart>
+                    </ChartContainer>
+                  );
+                })()}
               </CardContent>
             </Card>
 
@@ -479,7 +575,7 @@ const AdminDashboard = ({ onLogout, sessionId }: AdminDashboardProps) => {
                   <div className="text-center py-8 text-gray-500">
                     <p>Ingen tilbakemeldinger funnet</p>
                     <p className="text-sm mt-2">
-                      {selectedDate !== 'all' || selectedClass !== 'all' 
+                      {selectedDate !== 'all' || selectedClass !== 'all'
                         ? 'Prøv å endre filtrene ovenfor'
                         : 'Det er ingen data i databasen ennå'
                       }
