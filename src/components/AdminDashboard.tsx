@@ -69,14 +69,29 @@ const AdminDashboard = ({ onLogout, sessionId }: AdminDashboardProps) => {
 
   const deleteFeedbackMutation = useMutation({
     mutationFn: async (feedbackId: string) => {
-      const { error } = await supabase
+      console.log('Attempting to delete feedback with ID:', feedbackId);
+
+      const { data, error } = await supabase
         .from('feedback')
         .delete()
-        .eq('id', feedbackId);
+        .eq('id', feedbackId)
+        .select(); // This will return the deleted row(s) if successful
 
-      if (error) throw error;
+      if (error) {
+        console.error('Delete error:', error);
+        throw error;
+      }
+
+      console.log('Delete successful, deleted rows:', data);
+
+      if (!data || data.length === 0) {
+        throw new Error('Ingen rader ble slettet. Tilbakemeldingen finnes kanskje ikke.');
+      }
+
+      return data;
     },
-    onSuccess: () => {
+    onSuccess: (deletedData) => {
+      console.log('Delete mutation successful:', deletedData);
       queryClient.invalidateQueries({ queryKey: ['feedback'] });
       toast({
         title: "Tilbakemelding slettet",
@@ -84,7 +99,7 @@ const AdminDashboard = ({ onLogout, sessionId }: AdminDashboardProps) => {
       });
     },
     onError: (error) => {
-      console.error('Delete error:', error);
+      console.error('Delete mutation error:', error);
       toast({
         title: "Sletting feilet",
         description: `Kunne ikke slette tilbakemelding: ${error.message}`,
@@ -561,7 +576,11 @@ const AdminDashboard = ({ onLogout, sessionId }: AdminDashboardProps) => {
                             <Button
                               variant="destructive"
                               size="sm"
-                              onClick={() => deleteFeedbackMutation.mutate(feedback.id)}
+                              onClick={() => {
+                                if (window.confirm('Er du sikker på at du vil slette denne tilbakemeldingen? Dette kan ikke angres.')) {
+                                  deleteFeedbackMutation.mutate(feedback.id);
+                                }
+                              }}
                               disabled={deleteFeedbackMutation.isPending}
                             >
                               <Trash2 className="w-4 h-4" />
