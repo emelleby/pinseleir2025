@@ -1,14 +1,25 @@
-import React, { useState } from 'react';
+import { useState } from 'react';
 import { Button } from '@/components/ui/button';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
+import { Badge } from '@/components/ui/badge';
+import { Checkbox } from '@/components/ui/checkbox';
+import { Label } from '@/components/ui/label';
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuLabel,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from '@/components/ui/dropdown-menu';
 import { useToast } from '@/hooks/use-toast';
 import { supabase } from '@/integrations/supabase/client';
-import { ChartBarHorizontal } from '@/components/chart';
+
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid } from 'recharts';
 import { ChartContainer, ChartConfig, ChartTooltip, ChartTooltipContent } from '@/components/ui/chart';
-import { LogOut, Filter, Trash2 } from 'lucide-react';
+import { LogOut, Filter, Trash2, ChevronDown, X } from 'lucide-react';
 import {
   Table,
   TableBody,
@@ -37,12 +48,34 @@ const trainingDates = [
 
 const AdminDashboard = ({ onLogout, sessionId }: AdminDashboardProps) => {
   const [selectedDate, setSelectedDate] = useState<string>('all');
-  const [selectedClass, setSelectedClass] = useState<string>('all');
+  const [excludedClasses, setExcludedClasses] = useState<string[]>([]);
   const { toast } = useToast();
   const queryClient = useQueryClient();
 
+  // Helper functions for managing excluded classes
+  const toggleClassExclusion = (className: string) => {
+    setExcludedClasses(prev =>
+      prev.includes(className)
+        ? prev.filter(c => c !== className)
+        : [...prev, className]
+    );
+  };
+
+  const removeClassExclusion = (className: string) => {
+    setExcludedClasses(prev => prev.filter(c => c !== className));
+  };
+
+  const excludeAllClasses = () => {
+    setExcludedClasses([...boatClasses]);
+  };
+
+  const clearAllFilters = () => {
+    setSelectedDate('all');
+    setExcludedClasses([]);
+  };
+
   const { data: feedbackData, isLoading, error } = useQuery({
-    queryKey: ['feedback', selectedDate, selectedClass, sessionId],
+    queryKey: ['feedback', selectedDate, excludedClasses, sessionId],
     queryFn: async () => {
       console.log('Fetching feedback data for admin session:', sessionId);
 
@@ -52,8 +85,8 @@ const AdminDashboard = ({ onLogout, sessionId }: AdminDashboardProps) => {
       if (selectedDate && selectedDate !== 'all') {
         query = query.eq('training_date', selectedDate);
       }
-      if (selectedClass && selectedClass !== 'all') {
-        query = query.eq('boat_class', selectedClass);
+      if (excludedClasses.length > 0) {
+        query = query.not('boat_class', 'in', `(${excludedClasses.join(',')})`);
       }
 
       const { data, error } = await query.order('created_at', { ascending: false });
@@ -239,36 +272,95 @@ const AdminDashboard = ({ onLogout, sessionId }: AdminDashboardProps) => {
               Filtrer resultater
             </CardTitle>
           </CardHeader>
-          <CardContent className="flex gap-4">
-            <div className="flex-1">
-              <Select value={selectedDate} onValueChange={setSelectedDate}>
-                <SelectTrigger>
-                  <SelectValue placeholder="Alle dager" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="all">Alle dager</SelectItem>
-                  {trainingDates.map((date) => (
-                    <SelectItem key={date.value} value={date.value}>
-                      {date.label}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
+          <CardContent className="space-y-4">
+            <div className="flex gap-4">
+              <div className="flex-1">
+                <Select value={selectedDate} onValueChange={setSelectedDate}>
+                  <SelectTrigger>
+                    <SelectValue placeholder="Alle dager" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="all">Alle dager</SelectItem>
+                    {trainingDates.map((date) => (
+                      <SelectItem key={date.value} value={date.value}>
+                        {date.label}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+              <div className="flex-1">
+                <div className="space-y-2">
+                  <DropdownMenu>
+                    <DropdownMenuTrigger asChild>
+                      <Button variant="outline" className="w-full justify-between">
+                        Ekskluder båtklasser
+                        <ChevronDown className="h-4 w-4" />
+                      </Button>
+                    </DropdownMenuTrigger>
+                    <DropdownMenuContent className="w-56">
+                      <DropdownMenuLabel>Velg klasser å ekskludere</DropdownMenuLabel>
+                      <DropdownMenuSeparator />
+                      {boatClasses.map((boatClass) => (
+                        <DropdownMenuItem
+                          key={boatClass}
+                          className="flex items-center space-x-2"
+                          onSelect={(e) => e.preventDefault()}
+                        >
+                          <Checkbox
+                            id={`class-${boatClass}`}
+                            checked={excludedClasses.includes(boatClass)}
+                            onCheckedChange={() => toggleClassExclusion(boatClass)}
+                          />
+                          <Label
+                            htmlFor={`class-${boatClass}`}
+                            className="flex-1 cursor-pointer"
+                          >
+                            {boatClass}
+                          </Label>
+                        </DropdownMenuItem>
+                      ))}
+                    </DropdownMenuContent>
+                  </DropdownMenu>
+
+                  {/* Badges for excluded classes */}
+                  {excludedClasses.length > 0 && (
+                    <div className="flex flex-wrap gap-1">
+                      {excludedClasses.map((className) => (
+                        <Badge
+                          key={className}
+                          variant="destructive"
+                          className="cursor-pointer"
+                          onClick={() => removeClassExclusion(className)}
+                        >
+                          {className}
+                          <X className="h-3 w-3 ml-1" />
+                        </Badge>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              </div>
             </div>
-            <div className="flex-1">
-              <Select value={selectedClass} onValueChange={setSelectedClass}>
-                <SelectTrigger>
-                  <SelectValue placeholder="Alle båtklasser" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="all">Alle båtklasser</SelectItem>
-                  {boatClasses.map((boatClass) => (
-                    <SelectItem key={boatClass} value={boatClass}>
-                      {boatClass}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
+
+            {/* Action buttons */}
+            <div className="flex gap-2">
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={excludeAllClasses}
+                disabled={excludedClasses.length === boatClasses.length}
+              >
+                Ekskluder alle
+              </Button>
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={clearAllFilters}
+                disabled={selectedDate === 'all' && excludedClasses.length === 0}
+              >
+                Nullstill alle filtre
+              </Button>
             </div>
           </CardContent>
         </Card>
@@ -334,8 +426,8 @@ const AdminDashboard = ({ onLogout, sessionId }: AdminDashboardProps) => {
             </div>
 
             {/* Charts */}
-            <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-              <Card>
+            <div className="grid grid-cols-1 lg:grid-cols-6 gap-6">
+              <Card className="lg:col-span-2">
                 <CardHeader>
                   <CardTitle>Svar per dag</CardTitle>
                 </CardHeader>
@@ -380,7 +472,7 @@ const AdminDashboard = ({ onLogout, sessionId }: AdminDashboardProps) => {
                 </CardContent>
               </Card>
 
-              <Card>
+              <Card className="lg:col-span-4">
                 <CardHeader>
                   <CardTitle>Svar per båtklasse</CardTitle>
                 </CardHeader>
@@ -594,7 +686,7 @@ const AdminDashboard = ({ onLogout, sessionId }: AdminDashboardProps) => {
                   <div className="text-center py-8 text-gray-500">
                     <p>Ingen tilbakemeldinger funnet</p>
                     <p className="text-sm mt-2">
-                      {selectedDate !== 'all' || selectedClass !== 'all'
+                      {selectedDate !== 'all' || excludedClasses.length > 0
                         ? 'Prøv å endre filtrene ovenfor'
                         : 'Det er ingen data i databasen ennå'
                       }
