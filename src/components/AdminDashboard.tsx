@@ -31,15 +31,21 @@ const AdminDashboard = ({ onLogout, sessionId }: AdminDashboardProps) => {
   const { toast } = useToast();
 
   const { data: feedbackData, isLoading, error } = useQuery({
-    queryKey: ['feedback', selectedDate, selectedClass],
+    queryKey: ['feedback', selectedDate, selectedClass, sessionId],
     queryFn: async () => {
-      // Set the admin session context
-      await supabase.rpc('set_config', {
-        setting_name: 'app.admin_session_id',
-        setting_value: sessionId,
-        is_local: false
-      });
+      // First validate the admin session
+      const { data: sessionCheck } = await supabase
+        .from('admin_sessions')
+        .select('id')
+        .eq('session_id', sessionId)
+        .gt('expires_at', new Date().toISOString())
+        .maybeSingle();
 
+      if (!sessionCheck) {
+        throw new Error('Invalid or expired admin session');
+      }
+
+      // Build the query for feedback data
       let query = supabase.from('feedback').select('*');
       
       if (selectedDate) {
