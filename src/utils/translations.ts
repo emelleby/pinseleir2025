@@ -53,7 +53,7 @@ export function getShortFieldTranslation(fieldName: string): string {
     coach_quality: "Instruktørkvalitet",
     organization: "Organisering",
     safety: "Sikkerhet",
-    equipment: "Hjelp fra trener",
+    help: "Hjelp fra trener",
     instructions: "Klare instrukser",
     tempo: "Tempo",
     future_participation: "Fremtidig deltakelse",
