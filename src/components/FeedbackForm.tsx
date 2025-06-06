@@ -209,11 +209,12 @@ const FeedbackForm = () => {
       <Card>
         <CardHeader className="p-4 ">
           <CardTitle className="text-2xl font-bold text-center">
-            Tilbakemelding for seiltrening
+            Tilbakemelding for Pinseleir 2025
           </CardTitle>
           <CardDescription className="text-center">
             Takk for at du deltar på Pinseleir 2025! Din tilbakemelding er
-            verdifull for å hjelpe oss med å forbedre neste års samling.
+            verdifull for å hjelpe oss med å forbedre neste års samling. Send
+            inn et svar hver dag er du snill.
             <br />
             <br />
             Dette skjemaet er helt anonymt, så vær dønn ærlig. Bruk skalaen!
