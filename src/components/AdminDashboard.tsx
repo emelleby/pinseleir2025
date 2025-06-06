@@ -1,4 +1,3 @@
-
 import React, { useState } from 'react';
 import { Button } from '@/components/ui/button';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
@@ -26,8 +25,8 @@ const trainingDates = [
 ];
 
 const AdminDashboard = ({ onLogout, sessionId }: AdminDashboardProps) => {
-  const [selectedDate, setSelectedDate] = useState<string>('');
-  const [selectedClass, setSelectedClass] = useState<string>('');
+  const [selectedDate, setSelectedDate] = useState<string>('all');
+  const [selectedClass, setSelectedClass] = useState<string>('all');
   const { toast } = useToast();
 
   const { data: feedbackData, isLoading, error } = useQuery({
@@ -48,10 +47,10 @@ const AdminDashboard = ({ onLogout, sessionId }: AdminDashboardProps) => {
       // Build the query for feedback data
       let query = supabase.from('feedback').select('*');
       
-      if (selectedDate) {
+      if (selectedDate && selectedDate !== 'all') {
         query = query.eq('training_date', selectedDate);
       }
-      if (selectedClass) {
+      if (selectedClass && selectedClass !== 'all') {
         query = query.eq('boat_class', selectedClass);
       }
 
@@ -175,7 +174,7 @@ const AdminDashboard = ({ onLogout, sessionId }: AdminDashboardProps) => {
                   <SelectValue placeholder="Alle dager" />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="">Alle dager</SelectItem>
+                  <SelectItem value="all">Alle dager</SelectItem>
                   {trainingDates.map((date) => (
                     <SelectItem key={date.value} value={date.value}>
                       {date.label}
@@ -190,7 +189,7 @@ const AdminDashboard = ({ onLogout, sessionId }: AdminDashboardProps) => {
                   <SelectValue placeholder="Alle båtklasser" />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="">Alle båtklasser</SelectItem>
+                  <SelectItem value="all">Alle båtklasser</SelectItem>
                   {boatClasses.map((boatClass) => (
                     <SelectItem key={boatClass} value={boatClass}>
                       {boatClass}
