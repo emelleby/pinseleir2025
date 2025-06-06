@@ -7,6 +7,8 @@ import { Textarea } from '@/components/ui/textarea';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { useToast } from '@/hooks/use-toast';
+import { supabase } from '@/integrations/supabase/client';
+import { useMutation } from '@tanstack/react-query';
 
 const boatClasses = [
   'QA', 'QB', 'QC', 'QD', 'QE', 'QF', 'QG', 
@@ -52,6 +54,69 @@ const FeedbackForm = () => {
     otherComments: ''
   });
 
+  const submitFeedback = useMutation({
+    mutationFn: async (data: typeof formData) => {
+      const { error } = await supabase
+        .from('feedback')
+        .insert({
+          training_date: data.trainingDate,
+          boat_class: data.boatClass,
+          enjoyment: data.enjoyment || null,
+          learning: data.learning || null,
+          social_connections: data.socialConnections || null,
+          food_quality: data.foodQuality || null,
+          coach_quality: data.coachQuality || null,
+          organization: data.organization || null,
+          safety: data.safety || null,
+          equipment: data.equipment || null,
+          instructions: data.instructions || null,
+          tempo: data.tempo || null,
+          future_participation: data.futureParticipation || null,
+          recommendation: data.recommendation || null,
+          safety_measures: data.safetyMeasures || null,
+          equipment_quality: data.equipmentQuality || null,
+          instruction_clarity: data.instructionClarity || null,
+          facilities: data.facilities || null,
+          meals: data.meals || null,
+          weather_handling: data.weatherHandling || null,
+          best_part: data.bestPart || null,
+          improvements: data.improvements || null,
+          coach_feedback: data.coachFeedback || null,
+          recommend_to_non_sailors: data.recommendToNonSailors || null,
+          other_comments: data.otherComments || null
+        });
+
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      toast({
+        title: "Takk for din tilbakemelding!",
+        description: "Dine svar har blitt registrert.",
+      });
+      
+      // Reset form
+      setFormData({
+        trainingDate: '',
+        boatClass: '',
+        enjoyment: 0, learning: 0, socialConnections: 0, foodQuality: 0,
+        coachQuality: 0, organization: 0, safety: 0, equipment: 0,
+        instructions: 0, tempo: 0, futureParticipation: 0, recommendation: 0,
+        safetyMeasures: 0, equipmentQuality: 0, instructionClarity: 0,
+        facilities: 0, meals: 0, weatherHandling: 0,
+        bestPart: '', improvements: '', coachFeedback: '',
+        recommendToNonSailors: '', otherComments: ''
+      });
+    },
+    onError: (error) => {
+      console.error('Error submitting feedback:', error);
+      toast({
+        title: "Feil ved innsending",
+        description: "Det oppstod en feil. Prøv igjen senere.",
+        variant: "destructive"
+      });
+    }
+  });
+
   const handleRatingChange = (field: string, value: number) => {
     setFormData(prev => ({ ...prev, [field]: value }));
   };
@@ -72,26 +137,7 @@ const FeedbackForm = () => {
       return;
     }
 
-    // Here we'll add the database submission later
-    console.log('Form data:', formData);
-    
-    toast({
-      title: "Takk for din tilbakemelding!",
-      description: "Dine svar har blitt registrert.",
-    });
-    
-    // Reset form
-    setFormData({
-      trainingDate: '',
-      boatClass: '',
-      enjoyment: 0, learning: 0, socialConnections: 0, foodQuality: 0,
-      coachQuality: 0, organization: 0, safety: 0, equipment: 0,
-      instructions: 0, tempo: 0, futureParticipation: 0, recommendation: 0,
-      safetyMeasures: 0, equipmentQuality: 0, instructionClarity: 0,
-      facilities: 0, meals: 0, weatherHandling: 0,
-      bestPart: '', improvements: '', coachFeedback: '',
-      recommendToNonSailors: '', otherComments: ''
-    });
+    submitFeedback.mutate(formData);
   };
 
   const RatingScale = ({ field, label, value }: { field: string; label: string; value: number }) => (
@@ -354,12 +400,26 @@ const FeedbackForm = () => {
               </CardContent>
             </Card>
 
-            <Button type="submit" className="w-full py-3 text-lg">
-              Send tilbakemelding
+            <Button 
+              type="submit" 
+              className="w-full py-3 text-lg"
+              disabled={submitFeedback.isPending}
+            >
+              {submitFeedback.isPending ? 'Sender...' : 'Send tilbakemelding'}
             </Button>
           </form>
         </CardContent>
       </Card>
+      
+      {/* Subtle admin link */}
+      <div className="text-center">
+        <a 
+          href="/admin" 
+          className="text-xs text-gray-400 hover:text-gray-600 transition-colors"
+        >
+          •
+        </a>
+      </div>
     </div>
   );
 };

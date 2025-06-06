@@ -9,13 +9,126 @@ export type Json =
 export type Database = {
   public: {
     Tables: {
-      [_ in never]: never
+      admin_sessions: {
+        Row: {
+          created_at: string
+          expires_at: string
+          id: string
+          session_id: string
+        }
+        Insert: {
+          created_at?: string
+          expires_at?: string
+          id?: string
+          session_id: string
+        }
+        Update: {
+          created_at?: string
+          expires_at?: string
+          id?: string
+          session_id?: string
+        }
+        Relationships: []
+      }
+      feedback: {
+        Row: {
+          best_part: string | null
+          boat_class: string
+          coach_feedback: string | null
+          coach_quality: number | null
+          created_at: string
+          enjoyment: number | null
+          equipment: number | null
+          equipment_quality: number | null
+          facilities: number | null
+          food_quality: number | null
+          future_participation: number | null
+          id: string
+          improvements: string | null
+          instruction_clarity: number | null
+          instructions: number | null
+          learning: number | null
+          meals: number | null
+          organization: number | null
+          other_comments: string | null
+          recommend_to_non_sailors: string | null
+          recommendation: number | null
+          safety: number | null
+          safety_measures: number | null
+          social_connections: number | null
+          tempo: number | null
+          training_date: string
+          weather_handling: number | null
+        }
+        Insert: {
+          best_part?: string | null
+          boat_class: string
+          coach_feedback?: string | null
+          coach_quality?: number | null
+          created_at?: string
+          enjoyment?: number | null
+          equipment?: number | null
+          equipment_quality?: number | null
+          facilities?: number | null
+          food_quality?: number | null
+          future_participation?: number | null
+          id?: string
+          improvements?: string | null
+          instruction_clarity?: number | null
+          instructions?: number | null
+          learning?: number | null
+          meals?: number | null
+          organization?: number | null
+          other_comments?: string | null
+          recommend_to_non_sailors?: string | null
+          recommendation?: number | null
+          safety?: number | null
+          safety_measures?: number | null
+          social_connections?: number | null
+          tempo?: number | null
+          training_date: string
+          weather_handling?: number | null
+        }
+        Update: {
+          best_part?: string | null
+          boat_class?: string
+          coach_feedback?: string | null
+          coach_quality?: number | null
+          created_at?: string
+          enjoyment?: number | null
+          equipment?: number | null
+          equipment_quality?: number | null
+          facilities?: number | null
+          food_quality?: number | null
+          future_participation?: number | null
+          id?: string
+          improvements?: string | null
+          instruction_clarity?: number | null
+          instructions?: number | null
+          learning?: number | null
+          meals?: number | null
+          organization?: number | null
+          other_comments?: string | null
+          recommend_to_non_sailors?: string | null
+          recommendation?: number | null
+          safety?: number | null
+          safety_measures?: number | null
+          social_connections?: number | null
+          tempo?: number | null
+          training_date?: string
+          weather_handling?: number | null
+        }
+        Relationships: []
+      }
     }
     Views: {
       [_ in never]: never
     }
     Functions: {
-      [_ in never]: never
+      is_admin: {
+        Args: Record<PropertyKey, never>
+        Returns: boolean
+      }
     }
     Enums: {
       [_ in never]: never
