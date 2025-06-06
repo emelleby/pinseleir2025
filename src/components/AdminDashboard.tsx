@@ -4,9 +4,17 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { useToast } from '@/hooks/use-toast';
 import { supabase } from '@/integrations/supabase/client';
-import { useQuery } from '@tanstack/react-query';
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts';
-import { LogOut, Filter } from 'lucide-react';
+import { LogOut, Filter, Trash2 } from 'lucide-react';
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from '@/components/ui/table';
 
 interface AdminDashboardProps {
   onLogout: () => void;
@@ -28,21 +36,41 @@ const AdminDashboard = ({ onLogout, sessionId }: AdminDashboardProps) => {
   const [selectedDate, setSelectedDate] = useState<string>('all');
   const [selectedClass, setSelectedClass] = useState<string>('all');
   const { toast } = useToast();
+  const queryClient = useQueryClient();
 
   const { data: feedbackData, isLoading, error } = useQuery({
     queryKey: ['feedback', selectedDate, selectedClass, sessionId],
     queryFn: async () => {
-      // First validate the admin session
-      const { data: sessionCheck } = await supabase
+      console.log('Validating admin session:', sessionId);
+      
+      // First validate the admin session with better error handling
+      const { data: sessionCheck, error: sessionError } = await supabase
         .from('admin_sessions')
-        .select('id')
+        .select('id, expires_at')
         .eq('session_id', sessionId)
-        .gt('expires_at', new Date().toISOString())
         .maybeSingle();
 
-      if (!sessionCheck) {
-        throw new Error('Invalid or expired admin session');
+      console.log('Session check result:', { sessionCheck, sessionError });
+
+      if (sessionError) {
+        console.error('Session check error:', sessionError);
+        throw new Error(`Database error: ${sessionError.message}`);
       }
+
+      if (!sessionCheck) {
+        console.error('No session found for session_id:', sessionId);
+        throw new Error('Invalid admin session - session not found');
+      }
+
+      // Check if session is expired
+      const now = new Date();
+      const expiresAt = new Date(sessionCheck.expires_at);
+      if (expiresAt <= now) {
+        console.error('Session expired:', { expiresAt, now });
+        throw new Error('Admin session has expired');
+      }
+
+      console.log('Session validated successfully');
 
       // Build the query for feedback data
       let query = supabase.from('feedback').select('*');
@@ -55,8 +83,51 @@ const AdminDashboard = ({ onLogout, sessionId }: AdminDashboardProps) => {
       }
 
       const { data, error } = await query.order('created_at', { ascending: false });
+      if (error) {
+        console.error('Feedback query error:', error);
+        throw error;
+      }
+      
+      console.log('Feedback data loaded:', data?.length || 0, 'records');
+      return data || [];
+    }
+  });
+
+  const deleteFeedbackMutation = useMutation({
+    mutationFn: async (feedbackId: string) => {
+      // Validate session again before deletion
+      const { data: sessionCheck } = await supabase
+        .from('admin_sessions')
+        .select('id')
+        .eq('session_id', sessionId)
+        .gt('expires_at', new Date().toISOString())
+        .maybeSingle();
+
+      if (!sessionCheck) {
+        throw new Error('Invalid or expired admin session');
+      }
+
+      const { error } = await supabase
+        .from('feedback')
+        .delete()
+        .eq('id', feedbackId);
+
       if (error) throw error;
-      return data;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['feedback'] });
+      toast({
+        title: "Tilbakemelding slettet",
+        description: "Tilbakemeldingen har blitt slettet fra databasen.",
+      });
+    },
+    onError: (error) => {
+      console.error('Delete error:', error);
+      toast({
+        title: "Sletting feilet",
+        description: `Kunne ikke slette tilbakemelding: ${error.message}`,
+        variant: "destructive"
+      });
     }
   });
 
@@ -134,12 +205,22 @@ const AdminDashboard = ({ onLogout, sessionId }: AdminDashboardProps) => {
   };
 
   if (error) {
+    console.error('Dashboard error:', error);
     return (
       <div className="min-h-screen bg-gradient-to-br from-blue-50 to-slate-100 p-6">
         <div className="max-w-4xl mx-auto">
           <Card>
             <CardContent className="p-6">
-              <p className="text-red-600">Feil ved lasting av data: {error.message}</p>
+              <p className="text-red-600 mb-4">Feil ved lasting av data: {error.message}</p>
+              <div className="space-y-2 text-sm text-gray-600">
+                <p><strong>Feilsøkingsinformasjon:</strong></p>
+                <p>Session ID: {sessionId}</p>
+                <p>Tidspunkt: {new Date().toLocaleString('no-NO')}</p>
+                <Button onClick={handleLogout} variant="outline" className="mt-4">
+                  <LogOut className="w-4 h-4 mr-2" />
+                  Prøv å logge inn på nytt
+                </Button>
+              </div>
             </CardContent>
           </Card>
         </div>
@@ -344,6 +425,67 @@ const AdminDashboard = ({ onLogout, sessionId }: AdminDashboardProps) => {
                     </div>
                   ))}
                 </div>
+              </CardContent>
+            </Card>
+
+            {/* Feedback Management Table */}
+            <Card>
+              <CardHeader>
+                <CardTitle>Administrer tilbakemeldinger</CardTitle>
+                <CardDescription>
+                  Oversikt over alle tilbakemeldinger med mulighet for sletting
+                </CardDescription>
+              </CardHeader>
+              <CardContent>
+                {feedbackData && feedbackData.length > 0 ? (
+                  <Table>
+                    <TableHeader>
+                      <TableRow>
+                        <TableHead>Dato</TableHead>
+                        <TableHead>Båtklasse</TableHead>
+                        <TableHead>Tilfredshet</TableHead>
+                        <TableHead>Anbefaling</TableHead>
+                        <TableHead>Opprettet</TableHead>
+                        <TableHead>Handlinger</TableHead>
+                      </TableRow>
+                    </TableHeader>
+                    <TableBody>
+                      {feedbackData.map((feedback) => (
+                        <TableRow key={feedback.id}>
+                          <TableCell>
+                            {trainingDates.find(d => d.value === feedback.training_date)?.label || feedback.training_date}
+                          </TableCell>
+                          <TableCell>{feedback.boat_class}</TableCell>
+                          <TableCell>{feedback.enjoyment || 'N/A'}/7</TableCell>
+                          <TableCell>{feedback.recommendation || 'N/A'}/7</TableCell>
+                          <TableCell>
+                            {new Date(feedback.created_at).toLocaleString('no-NO')}
+                          </TableCell>
+                          <TableCell>
+                            <Button
+                              variant="destructive"
+                              size="sm"
+                              onClick={() => deleteFeedbackMutation.mutate(feedback.id)}
+                              disabled={deleteFeedbackMutation.isPending}
+                            >
+                              <Trash2 className="w-4 h-4" />
+                            </Button>
+                          </TableCell>
+                        </TableRow>
+                      ))}
+                    </TableBody>
+                  </Table>
+                ) : (
+                  <div className="text-center py-8 text-gray-500">
+                    <p>Ingen tilbakemeldinger funnet</p>
+                    <p className="text-sm mt-2">
+                      {selectedDate !== 'all' || selectedClass !== 'all' 
+                        ? 'Prøv å endre filtrene ovenfor'
+                        : 'Det er ingen data i databasen ennå'
+                      }
+                    </p>
+                  </div>
+                )}
               </CardContent>
             </Card>
           </>

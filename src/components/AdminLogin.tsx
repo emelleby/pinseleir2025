@@ -22,16 +22,29 @@ const AdminLogin = ({ onLogin }: AdminLoginProps) => {
         throw new Error('Feil passord');
       }
 
-      // Create a session
+      console.log('Creating admin session...');
+
+      // Create a session with better error handling
       const sessionId = crypto.randomUUID();
-      const { error } = await supabase
+      const expiresAt = new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString();
+      
+      console.log('Session details:', { sessionId, expiresAt });
+
+      const { data, error } = await supabase
         .from('admin_sessions')
         .insert({
           session_id: sessionId,
-          expires_at: new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString()
-        });
+          expires_at: expiresAt
+        })
+        .select()
+        .single();
 
-      if (error) throw error;
+      if (error) {
+        console.error('Session creation error:', error);
+        throw new Error(`Kunne ikke opprette sesjon: ${error.message}`);
+      }
+
+      console.log('Session created successfully:', data);
       return sessionId;
     },
     onSuccess: (sessionId) => {
@@ -46,7 +59,7 @@ const AdminLogin = ({ onLogin }: AdminLoginProps) => {
       console.error('Login error:', error);
       toast({
         title: "Innlogging feilet",
-        description: "Feil passord. Prøv igjen.",
+        description: error.message,
         variant: "destructive"
       });
     }
