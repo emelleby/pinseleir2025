@@ -143,7 +143,7 @@ const FeedbackForm = () => {
   const RatingScale = ({ field, label, value }: { field: string; label: string; value: number }) => (
     <div className="space-y-2">
       <Label className="text-sm font-medium">{label}</Label>
-      <div className="flex gap-2">
+      <div className="flex justify-between">
         {[1, 2, 3, 4, 5, 6, 7].map((rating) => (
           <button
             key={rating}
@@ -163,9 +163,9 @@ const FeedbackForm = () => {
   );
 
   return (
-    <div className="max-w-4xl mx-auto p-6 space-y-8">
+    <div className="max-w-4xl mx-auto sm:p-6 space-y-8">
       <Card>
-        <CardHeader>
+        <CardHeader className="p-4 ">
           <CardTitle className="text-2xl font-bold text-center">
             Tilbakemelding for seiltrening
           </CardTitle>
@@ -176,7 +176,7 @@ const FeedbackForm = () => {
           </CardDescription>
         </CardHeader>
         
-        <CardContent>
+        <CardContent className="px-4">
           <form onSubmit={handleSubmit} className="space-y-8">
             {/* Obligatorisk informasjon */}
             <Card>
